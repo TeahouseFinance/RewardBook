@@ -142,6 +142,52 @@ describe("RewardBook", function () {
             const reward2 = ethers.parseEther("2");
             await expect(rewardBook.sendRewardsEth([otherAccount, otherAccount2], [reward1, reward2]))
             .to.be.revertedWithCustomError(rewardBook, "InvalidTotalReward");
+        });
+
+        it("Should be able to claim ethereum reward with signature from owner", async function () {
+            const { rewardBook, owner, otherAccount } = await loadFixture(deployLockFixture);
+
+            const reward = ethers.parseEther("1");
+            const message = ethers.solidityPacked(["address", "uint256"], [otherAccount.address, reward]);
+            const signature = await owner.signMessage(ethers.toBeArray(message));
+            expect(await rewardBook.connect(otherAccount).claimRewardEth(otherAccount, reward, signature))
+            .to.emit(rewardBook, "RewardSentEth")
+            .withArgs(owner, otherAccount, reward, reward)
+            .changeEtherBalance(otherAccount, reward);
+
+            expect(await rewardBook.rewardsSentEth(otherAccount)).to.equal(reward);
+        });
+
+        it("Should not be able to claim ethereum reward with signature from non-owner", async function () {
+            const { rewardBook, otherAccount } = await loadFixture(deployLockFixture);
+
+            const reward = ethers.parseEther("1");
+            const message = ethers.solidityPacked(["address", "uint256"], [otherAccount.address, reward]);
+            const signature = await otherAccount.signMessage(ethers.toBeArray(message));
+            await expect(rewardBook.connect(otherAccount).claimRewardEth(otherAccount, reward, signature))
+            .to.be.revertedWithCustomError(rewardBook, "InvalidSignature");
+        });
+
+        it("Should not be able to claim ethereum reward with invalid signature", async function () {
+            const { rewardBook, owner, otherAccount } = await loadFixture(deployLockFixture);
+
+            const reward = ethers.parseEther("1");
+            const message = ethers.solidityPacked(["address", "uint256"], [otherAccount.address, reward]);
+            const signature = await owner.signMessage(ethers.toBeArray(message));
+            const changedSignature = signature.slice(0, -2) + "00";
+            await expect(rewardBook.connect(otherAccount).claimRewardEth(otherAccount, reward, changedSignature))
+            .to.be.revertedWith("ECDSA: invalid signature");
+        });
+
+        it("Should not be able to claim ethereum reward with signature consistent with parameters", async function () {
+            const { rewardBook, owner, otherAccount } = await loadFixture(deployLockFixture);
+
+            const reward = ethers.parseEther("1");
+            const reward2 = ethers.parseEther("2");
+            const message = ethers.solidityPacked(["address", "uint256"], [otherAccount.address, reward]);
+            const signature = await owner.signMessage(ethers.toBeArray(message));
+            await expect(rewardBook.connect(otherAccount).claimRewardEth(otherAccount, reward2, signature))
+            .to.be.revertedWithCustomError(rewardBook, "InvalidSignature");
         });        
 
         it("Should be able to collect ethereum from owner", async function () {
@@ -166,7 +212,7 @@ describe("RewardBook", function () {
             const amount = ethers.parseEther("10");
             await expect(rewardBook.connect(otherAccount).collectEth(owner, amount))
             .to.be.revertedWith("Ownable: caller is not the owner");
-        });
+        });        
     });
 
     describe("ERC20 functions", function () {
@@ -278,7 +324,53 @@ describe("RewardBook", function () {
             const reward2 = ethers.parseEther("2");
             await expect(rewardBook.sendRewardsERC20([token, token], [otherAccount, otherAccount2], [reward1, reward2]))
             .to.be.revertedWithCustomError(rewardBook, "InvalidTotalReward");
-        });        
+        });
+
+        it("Should be able to claim token reward with signature from owner", async function () {
+            const { rewardBook, token, owner, otherAccount } = await loadFixture(deployLockFixture);
+
+            const reward = ethers.parseEther("1");
+            const message = ethers.solidityPacked(["address", "address", "uint256"], [token.target, otherAccount.address, reward]);
+            const signature = await owner.signMessage(ethers.toBeArray(message));
+            expect(await rewardBook.connect(otherAccount).claimRewardERC20(token, otherAccount, reward, signature))
+            .to.emit(rewardBook, "RewardSentERC20")
+            .withArgs(owner, otherAccount, reward, reward)
+            .changeTokenBalance(token, otherAccount, reward);
+
+            expect(await rewardBook.rewardsSentERC20(token, otherAccount)).to.equal(reward);
+        });
+
+        it("Should not be able to claim ethereum reward with signature from non-owner", async function () {
+            const { rewardBook, token, otherAccount } = await loadFixture(deployLockFixture);
+
+            const reward = ethers.parseEther("1");
+            const message = ethers.solidityPacked(["address", "address", "uint256"], [token.target, otherAccount.address, reward]);
+            const signature = await otherAccount.signMessage(ethers.toBeArray(message));
+            await expect(rewardBook.connect(otherAccount).claimRewardERC20(token, otherAccount, reward, signature))
+            .to.be.revertedWithCustomError(rewardBook, "InvalidSignature");
+        });
+
+        it("Should not be able to claim ethereum reward with invalid signature", async function () {
+            const { rewardBook, token, owner, otherAccount } = await loadFixture(deployLockFixture);
+
+            const reward = ethers.parseEther("1");
+            const message = ethers.solidityPacked(["address", "address", "uint256"], [token.target, otherAccount.address, reward]);
+            const signature = await owner.signMessage(ethers.toBeArray(message));
+            const changedSignature = signature.slice(0, -2) + "00";
+            await expect(rewardBook.connect(otherAccount).claimRewardERC20(token, otherAccount, reward, changedSignature))
+            .to.be.revertedWith("ECDSA: invalid signature");
+        });
+
+        it("Should not be able to claim ethereum reward with signature consistent with parameters", async function () {
+            const { rewardBook, token, owner, otherAccount } = await loadFixture(deployLockFixture);
+
+            const reward = ethers.parseEther("1");
+            const reward2 = ethers.parseEther("2");
+            const message = ethers.solidityPacked(["address", "address", "uint256"], [token.target, otherAccount.address, reward]);
+            const signature = await owner.signMessage(ethers.toBeArray(message));
+            await expect(rewardBook.connect(otherAccount).claimRewardERC20(token, otherAccount, reward2, signature))
+            .to.be.revertedWithCustomError(rewardBook, "InvalidSignature");
+        });
 
         it("Should be able to collect token from owner", async function () {
             const { rewardBook, token, owner } = await loadFixture(deployLockFixture);
